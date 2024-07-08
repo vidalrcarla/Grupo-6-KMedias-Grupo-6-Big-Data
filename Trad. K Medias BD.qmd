@@ -1,0 +1,188 @@
+---
+title: "Capítulo 20: Agrupación en clústeres K-Medias"
+subtitle: "Perfil valórico de adultos chilenos" 
+date: last-modified
+date-format: 'DD [de] MMMM, YYYY'
+author: 
+    - name: Pedro Jofré <br> [pedro.jofre_g@mail.udp.cl](pedro.jofre_g@mail.udp.cl]){style="color:blue;"}
+      affiliation: 
+        - name: "Facultad de Ciencias Sociales e Historia <br> Universidad Diego Portales"
+    - name: Esperanza Lara <br> [esperanza.lara_m@mail.udp.cl](esperanza.lara_m@mail.udp.cl]){style="color:blue;"}
+      affiliation: 
+        - name: "Facultad de Ciencias Sociales e Historia <br> Universidad Diego Portales"
+    - name: Francisca Pérez <br> [francisca.perez3@mail.udp.cl](francisca.perez3@mail.udp.cl]){style="color:blue;"}
+      affiliation: 
+        - name: "Facultad de Ciencias Sociales e Historia <br> Universidad Diego Portales"
+    - name: Catalina Soza <br> [catalina.soza1@mail.udp.cl](catalina.soza1@mail.udp.cl]){style="color:blue;"}
+      affiliation: 
+        - name: "Facultad de Ciencias Sociales e Historia <br> Universidad Diego Portales"
+    - name: Carla Vidal <br> [carla.vidal_r@mail.udp.cl](carla.vidal_r@mail.udp.cl]){style="color:blue;"}
+      affiliation: 
+        - name: "Facultad de Ciencias Sociales e Historia <br> Universidad Diego Portales"
+last-modified:
+title-block-banner: true
+format: 
+  html:
+    page-layout: full
+    embed-resources: true
+    smooth-scroll: true
+    fontcolor: black
+    toc: true
+    toc-location: left
+    toc-title: Indice
+    code-copy: true
+    code-link: true
+    code-fold: true
+    code-tools: true
+    code-summary: "Click para ver el código"
+    anchor-sections: true
+    code-overflow: wrap
+    fig-cap-location: top
+csl: apa.csl
+lang: es
+---
+
+```{r}
+#| code-fold: TRUE
+#| warning: false
+#| message: false
+#| results: 'hide'
+# Código de ajustes
+
+rm(list = ls()) # Limpiamos la memoria 
+options(scipen = 999) # Desactivamos la notación científica
+options(knitr.kable.NA = '') # NA en blanco
+
+# Librerías utilizadas
+library(rio)
+library(tidyverse)
+```
+
+Esta es una plantilla para que puedan escribir sus propios capítulos. Más instrucciones para escribir documentos técnicos en: <https://quarto.org/docs/visual-editor/technical.html>
+
+# Capítulo 20: Agrupación en clústeres K-Medias
+
+En la tercera parte de este libro nos centramos en los métodos para reducir la dimensión de nuestro espacio de características *(p)*. Los capítulos restantes se refieren a los métodos para reducir la dimensión de nuestro espacio de observación *(n)*. Estos métodos se conocen comúnmente como métodos de agrupación. Hacer agrupaciones de K-medias es uno de los algoritmos más utilizados para dividir la cantidad de observaciones en un conjunto de K grupos (es decir, K clústeres), donde el número de K (clústeres) es definido y especificado por los investigadores. Realizar clpuesteres de K-Medias, al igual que otros algoritmos de agrupación de datos, clasifica las observaciones en grupos (o conglomerados) mutuamente excluyentes, de modo que las observaciones dentro del mismo conglomerado sean lo más similares entre sí (es decir, alta similitud intraclase), mientras que las observaciones de diferentes conglomerados son lo más diferentes posible (es decir, baja similitud entre clases). En la agrupación por el método de K-Medias, cada clúster es definido por su centro (es decir, centroide) que corresponde a la media de la distancia entre el centro del cluster y sus datos más próximos. El procedimiento utilizado para encontrar estos conglomerados es similar al algoritmo `k-nearest` más cercano (KNN), el cual se discute en el Capítulo 8, aunque sin la necesidad de tener que predecir un valor de respuesta promedio.
+
+## 20.1 Prerequisitos
+
+Para este capítulo usaremos los siguientes paquetes (para esto es necesario tener en cuenta que la función principal para realizar Clústers de K-Medias, `kmeans()`, se encuentra incluida en el paquete **stats** que viene con la instalación básica de R):
+
+```{r}
+#Paquetes de ayuda para realizar el procedimiento
+
+library(dplyr)      #Para manipulación de datos
+library(ggplot2)    #Para visualizar los datos
+library(stringr)    #Para funcionalidad en cadena
+
+#Paquetes de modelamiento de datos
+
+library(cluster)    #Para algoritmos de clusters en general
+library(factoextra) #Para visualizar los resultados del modelamiento de clusters
+
+```
+
+Para ilustrar el concepto de Cluster de *K-Medias*, usaremos la base de datos base_o. Esta base de datos corresponde a la Décima Encuesta Nacional de Juventudes realizada el año 2022 por el Instituto Nacional de la Juventud (INJUV). De la base de datos se seleccionó la que corresponde a adultos, es decir, personas entre 30 y 59 años.  Se utilizó un set de preguntas, que abarcan opiniones sobre temas presentes en el debate público como la legalización de la marihuana, matrimonio igualitario, determinación indígena, etc. Las preguntas seleccionadas del cuestionario corresponden a las del módulo `P11`, todas las preguntas son sobre grados de acuerdo que van del 1 al 5, en donde 1 es "muy en desacuerdo" y 5 "muy de acuerdo.
+
+Con esta base y estas preguntas se espera identificar el perfil valórico de adultos chilenos/as. 
+
+```{r}
+# Se carga la base de datos
+
+library(haven)
+
+base_o <- read_dta("C:/Users/vidal/Desktop/K-Medias BD/Kmedias-BD/K medias Grupo 6/base adultos/Adultos/BBDD Respuesta - Encuestas Adultos.dta")
+
+
+
+
+
+
+##AQUI HAY QUE DESCUBRIR LA FORMA DE COMO PONER LA BASE DE DATOS QUE USAMOS 
+```
+
+## 20.2 Definición de las medidas de distancia
+
+La clasificación de los datos en grupos requiere de algún método para calcular la distancia entre cada par de observaciones y su centro.
+
+En este sentido, existen muchos métodos para calcular las distancias entre las observaciones, y elegir la medida de distancia adecuada es crucial para la agrupación. Esta define cómo se calcula la similitud entre dos observaciones e influirá en la forma y el tamaño de los clústeres. Anteriormente, en la Sección 8.2.1 se menciona que las medidas de distancia incluyen a la distancia euclidiana y de Manhattan. Sin embargo, existen otras medidas, como las distancias basadas en la correlación, que se utilizan ampliamente para los datos de expresión génica; la medida de la distancia de Gower (que se discute más adelante en la Sección 20.7), que se utiliza comúnmente para conjuntos de datos que contienen características categóricas y ordinales; y la distancia de coseno, que se usa comúnmente en el campo de la minería de textos.
+
+Entonces, ¿cómo se decide una medida de distancia en particular? Desafortunadamente, no hay una respuesta directa y entran en juego varias consideraciones.
+
+La distancia euclidiana (es decir, la distancia en línea recta, o en línea recta) es muy sensible a los valores atípicos. Estos valores pueden sesgar los resultados del agrupamiento, lo que da una falsa confianza en la compacidad del conglomerado. Si las entidades siguen una distribución gaussiana aproximada, la distancia euclidiana es una medida razonable para usar. Sin embargo, si sus entidades se desvían significativamente de la normalidad o si simplemente desea ser más robusto con respecto a los valores atípicos existentes, las distancias de Manhattan, Minkowski o Gower suelen ser mejores opciones.
+
+Si se está analizando datos sin escala, donde las observaciones pueden tener grandes diferencias de magnitud, pero un comportamiento similar, es preferible usar una distancia basada en la correlación. Por ejemplo, supongamos que desea agrupar a los clientes en función de características de compra comunes. Es posible que los clientes de gran volumen y de bajo volumen muestren comportamientos similares; Sin embargo, debido a su magnitud de compra, la escala de los datos puede sesgar los clústeres si no se utiliza una medida de distancia basada en la correlación. La figura 20.1 ilustra este fenómeno en el que las observaciones uno y dos compran cantidades similares de artículos; sin embargo, las observaciones dos y tres tienen una correlación casi perfecta en su comportamiento de compra. Una medida de distancia sin correlación agruparía las observaciones uno y dos, mientras que una medida de distancia basada en la correlación agruparía las observaciones dos y tres.
+
+![Figura 20.1: Las medidas de distancia basadas en la correlación capturarán la correlación entre dos observaciones mejor que una medida de distancia no basada en la correlación; independientemente de las diferencias de magnitud.](https://bradleyboehmke.github.io/HOML/18-kmeans_files/figure-html/correlation-distance-example-1.png)
+
+## 20.3 Definición de clústeres
+
+La idea básica detrás de la agrupación en clústeres k-medias es construir clústeres de modo que se minimice la variación total dentro del clúster. Hay varios algoritmos k-means disponibles para hacer esto. El algoritmo estándar es el algoritmo de Hartigan-Wong (Hartigan y Wong 1979), que define la variación total dentro del conglomerado como la suma de las distancias euclidianas entre los valores de las características de la observación i y el centroide correspondiente:
+
+```{=tex}
+\begin{equation}
+\tag{20.1}
+W\left(C_k\right) = \sum_{x_i \in C_k}\left(x_{i} - \mu_k\right) ^ 2,
+\end{equation}
+```
+Donde:
+
+-   $x_i$ es una observación perteneciente al cúmulo $C_k$
+
+-   $\mu_k$ es el valor promedio de los puntos asignados al cluster $C_k$
+
+Cada observación $(x_1)$ se asigna a un conglomerado dado de modo que se minimiza la suma de las distancias al cuadrado (SS) de cada observación a sus centros de conglomerado asignado $(\mu_k)$.
+
+Definimos la variación total dentro del clúster de la siguiente manera:
+
+```{=tex}
+\begin{equation}
+\tag{20.2}
+SS_{within} = \sum^k_{k=1}W\left(C_k\right) = \sum^k_{k=1}\sum_{x_i \in C_k}\left(x_i - \mu_k\right)^2
+\end{equation}
+```
+El $SS\_{within}$ mide la compacidad (es decir, la bondad) de los grupos resultantes y queremos que sea lo más pequeño posible, como se ilustra en la Figura 20.2.
+
+![Figura 20.2: Variación total dentro del conglomerado captura las distancias totales entre el centroide de un conglomerado y las observaciones individuales asignadas a ese conglomerado. Cuanto más compactas son estas distancias, más definidos y aislados están los cúmulos.](https://bradleyboehmke.github.io/HOML/18-kmeans_files/figure-html/kmeans-clusters-good-better-best-1.png)
+
+El método de k-medias asume que los puntos están más cerca de su propio centro de clúster que de otros centros. Sin embargo, esta suposición puede fallar cuando los clústeres tienen formas complicadas, ya que k-medias requiere límites convexos. Por ejemplo, en la Figura 20.3 (A), los datos están claramente agrupados, pero sus agrupaciones no tienen límites convexos definidos. Debido a esto, el método de k-medias no logra capturar los grupos adecuados, como se muestra en la Figura 20.3 (B).
+
+Para solucionar este problema, los métodos de agrupamiento espectral utilizan el mismo truco de kernel discutido en el Capítulo 14, permitiendo que k-medias descubra límites no convexos, como se ilustra en la Figura 20.3 (C). Para una discusión exhaustiva sobre el agrupamiento espectral, se puede consultar a Friedman, Hastie y Tibshirani (2001), y el paquete "kernlab" proporciona una implementación en R.
+
+En el Capítulo 22, también abordaremos métodos de agrupamiento basados en modelos, que ofrecen una alternativa para capturar formas de clúster no convexas.
+
+![Figura 20.3: Los supuestos de k-means lo hacen ineficaz para capturar agrupaciones geométricas complejas; Sin embargo, la agrupación en clústeres espectral permite agrupar datos que están conectados, pero no necesariamente agrupados dentro de límites convexos.](https://bradleyboehmke.github.io/HOML/18-kmeans_files/figure-html/non-linear-boundaries-1.png)
+
+## 20.4 El algoritmo de K-Medias
+
+El primer paso al usar el método de agrupación en clústeres k-means es determinar el número de clústeres (k) que se formarán en la solución final. Desafortunadamente, a menos que nuestro conjunto de datos sea muy pequeño, no podemos evaluar todas las posibles combinaciones de agrupaciones, ya que existen casi $k^n$ formas diferentes de dividir $n$ observaciones en $k$ clústeres. Por lo tanto, necesitamos encontrar una solución óptima local utilizando un enfoque codicioso para el $k$ especificado (Hartigan y Wong 1979).
+
+Para ello, el algoritmo comienza seleccionando aleatoriamente $k$ observaciones del conjunto de datos, que servirán como los centros iniciales de los clústeres, también conocidos como centroides. Luego, cada una de las observaciones restantes se asigna a su centroide más cercano. La cercanía se define utilizando la distancia entre la observación y la media del clúster, basada en la medida de distancia seleccionada. Este proceso se llama el paso de asignación de clúster.
+
+El siguiente paso en el algoritmo k-means es calcular el nuevo centro, o valor medio, de cada clúster. Este proceso se llama actualización de centroide. Una vez recalculados los centros, cada observación se revisa nuevamente para determinar si podría estar más cerca de un clúster diferente. Las observaciones se reasignan utilizando las medias de los clústeres actualizados. Los pasos de asignación de clústeres y actualización de centroides se repiten de forma iterativa hasta que las asignaciones de clústeres dejan de cambiar, es decir, cuando se logra la convergencia. Esto ocurre cuando los clústeres formados en la iteración actual son los mismos que los obtenidos en la iteración anterior.
+
+Debido a la aleatorización de las observaciones $k$ iniciales utilizadas como centroides iniciales, podemos obtener resultados ligeramente diferentes cada vez que aplicamos el procedimiento. En consecuencia, la mayoría de los algoritmos utilizan varios inicios aleatorios y eligen la iteración con el $W\left(C_k\right)$ más bajo (Ecuación (20.1)). La figura 20.4 ilustra la variación en $W\left(C_k\right)$ para diferentes inicios aleatorios.
+
+-   **Una buena regla para el número de inicios aleatorios que se deben aplicar es de 10 a 20.**
+
+![Figura 20.4: Cada aplicación del algoritmo k-means puede lograr ligeras diferencias en los resultados finales en función del inicio aleatorio.](https://bradleyboehmke.github.io/HOML/18-kmeans_files/figure-html/random-starts-1.png)
+
+Para llevar a cabo un algoritmo de K-Medias se deben seguir los siguientes pasos:
+
+1.  Especifique el número de clústeres $(k)$ que se van a crear (esto lo hace el analista).
+2.  Seleccione observaciones $k$ al azar del conjunto de datos para utilizarlas como centroides de clúster iniciales.
+3.  Asigne cada observación a su centroide más cercano en función de la medida de distancia seleccionada.
+4.  Para cada uno de los clústeres $k$, actualice el centroide del clúster calculando los nuevos valores medios de todos los puntos de datos del clúster. El centroide para el $i$-ésimo grupo es un vector de longitud $p$ que contiene las medias de todas las características p para las observaciones del clúster $i$.
+5.  Minimice de forma iterativa $SS_{within}$. Es decir, itere los pasos 3 y 4 hasta que las asignaciones de clúster dejen de cambiar (más allá de algún umbral) o se alcance el número máximo de iteraciones. Una buena regla general es realizar de 10 a 20 iteraciones.
+
+## 20.6 ¿Cuántos clústeres?
+
+Al agrupar los datos de la base de datos `base_o` el número de clústeres que especificamos se puede basar en el conocimiento previo de los datos. Sin embargo, a menudo no tenemos este tipo de información a priori y la razón por la que estamos realizando análisis de conglomerados es para identificar qué conglomerados pueden existir. Entonces, ¿cómo hacemos para determinar el número correcto de k?
+
+-   La elección del número de clústeres requiere un delicado equilibrio. Los valores más altos de $k$ pueden mejorar la homogeneidad de los clústeres; sin embargo, se corre el riesgo de sobre ajustar.
+
+En la mejor situación, o quizás deberíamos decir la opción más sencilla, k ya está establecido de antemano. Esta circunstancia es frecuente cuando contamos con recursos determinados para asignar. Por ejemplo, una empresa puede tener un número fijo de vendedores, $k$, y desea categorizar a sus clientes en uno de los $k$ segmentos para asignarlos a uno de los vendedores. En esta situación, $k$ está predefinido por recursos o información externa disponible.
+
+Un caso más común es que $k$ es desconocido. Sin embargo, usualmente todavía se puede aplicar el conocimiento *a priori* para plantear agrupaciones potenciales. Por ejemplo, si se necesita agrupar las respuestas de una encuesta sobre experiencias de clientes para una empresa de venta de automóviles, se puede comenzar definiendo $k$ de acuerdo el número de marcas de automóviles que tiene una empresa.
+
+En este sentido, siguiendo con el ejemplo del perfil valórico de adultos chilenos, en ese caso en particular es posible
